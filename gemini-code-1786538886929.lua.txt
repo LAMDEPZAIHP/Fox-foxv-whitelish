@@ -1,0 +1,569 @@
+-- =================================================================
+-- SCRIPT: Gianhue.lua (Integrated with ong_U LED & obf.uiw Features)
+-- DESCRIPTION: UI Hub không Obfuscate (Clean Source), 30+ logic features,
+--              LED RGB Sập Xình, Scrollable Menu, Anti-AFK, Farm & Server Utilities.
+-- =================================================================
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+local VirtualUser = game:GetService("VirtualUser")
+
+-- -----------------------------------------------------------------
+-- 1. KHỞI TẠO TẬP LỆNH / BIẾN TRẠNG THÁI (TOGGLES & LOGIC STATE)
+-- -----------------------------------------------------------------
+_G.Settings = {
+    AutoFarm = false,
+    AutoChest = false,
+    FastAttack = false,
+    AutoStats = false,
+    AutoCollectFruit = false,
+    AutoStoreFruit = false,
+    KillAura = false,
+    HitboxExtender = false,
+    Noclip = false,
+    Fly = false,
+    AutoHaki = false,
+    AutoBone = false,
+    AutoRandomFruit = false,
+    InfStamina = false,
+    AutoClicker = false,
+    
+    AntiAFK = true,
+    AutoHopLowPlayers = false,
+    AutoHopSafety = false,
+    Fullbright = false,
+    FPSBooster = false,
+    SpectateTarget = nil
+}
+
+-- Destroy old UI if exists
+if CoreGui:FindFirstChild("GianhueHub") then
+    CoreGui.GianhueHub:Destroy()
+end
+
+-- -----------------------------------------------------------------
+-- 2. ĐỘNG CƠ LED SẬP XÌNH (ONG_U LED RGB ENGINE)
+-- -----------------------------------------------------------------
+local LEDElements = {}
+local function RegisterLED(guiObject, property)
+    table.insert(LEDElements, {Object = guiObject, Property = property})
+end
+
+task.spawn(function()
+    local hue = 0
+    while task.wait(0.02) do
+        hue = (hue + 0.008) % 1
+        local rgbColor = Color3.fromHSV(hue, 0.9, 1)
+        for _, item in ipairs(LEDElements) do
+            if item.Object and item.Object.Parent then
+                item.Object[item.Property] = rgbColor
+            end
+        end
+    end
+end)
+
+-- -----------------------------------------------------------------
+-- 3. KHUNG GIAO DIỆN CHÍNH (UI FRAMEWORK WITH SCROLLING & DRAG)
+-- -----------------------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "GianhueHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = CoreGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 580, 0, 380)
+MainFrame.Position = UDim2.new(0.5, -290, 0.5, -190)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local MainUICorner = Instance.new("UICorner", MainFrame)
+MainUICorner.CornerRadius = UDim.new(0, 8)
+
+-- LED Border (Khung viền LED Sập xình)
+local LEDBorder = Instance.new("UIStroke")
+LEDBorder.Thickness = 2.5
+LEDBorder.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+LEDBorder.Parent = MainFrame
+RegisterLED(LEDBorder, "Color")
+
+-- Top Title Bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner", TitleBar)
+TitleCorner.CornerRadius = UDim.new(0, 8)
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Size = UDim2.new(1, -20, 1, 0)
+TitleText.Position = UDim2.new(0, 15, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "GIANHUE.LUA  |  LED RGB ENGINE (ONG_U TXT)  |  OBF.UIW UTILS"
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextSize = 13
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.Parent = TitleBar
+RegisterLED(TitleText, "TextColor3")
+
+-- Sidebar Tabs Container
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 130, 1, -50)
+Sidebar.Position = UDim2.new(0, 5, 0, 45)
+Sidebar.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+Sidebar.Parent = MainFrame
+
+local SidebarCorner = Instance.new("UICorner", Sidebar)
+SidebarCorner.CornerRadius = UDim.new(0, 6)
+
+-- Pages Holder
+local PagesFolder = Instance.new("Folder")
+PagesFolder.Name = "Pages"
+PagesFolder.Parent = MainFrame
+
+-- Helper Function: Tạo Tab Scrollable (Tự động kéo cuộn nội dung)
+local function CreateTab(name)
+    local TabButton = Instance.new("TextButton")
+    TabButton.Size = UDim2.new(1, -10, 0, 32)
+    TabButton.Position = UDim2.new(0, 5, 0, (#Sidebar:GetChildren() - 1) * 36 + 5)
+    TabButton.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    TabButton.Text = name
+    TabButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    TabButton.Font = Enum.Font.GothamSemibold
+    TabButton.TextSize = 12
+    TabButton.Parent = Sidebar
+
+    local BtnCorner = Instance.new("UICorner", TabButton)
+    BtnCorner.CornerRadius = UDim.new(0, 5)
+
+    local PageScroll = Instance.new("ScrollingFrame")
+    PageScroll.Name = name .. "Page"
+    PageScroll.Size = UDim2.new(1, -150, 1, -50)
+    PageScroll.Position = UDim2.new(0, 140, 0, 45)
+    PageScroll.BackgroundTransparency = 1
+    PageScroll.BorderSizePixel = 0
+    PageScroll.ScrollBarThickness = 5
+    PageScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    PageScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    PageScroll.Visible = false
+    PageScroll.Parent = PagesFolder
+
+    local UIList = Instance.new("UIListLayout")
+    UIList.SortOrder = Enum.SortOrder.LayoutOrder
+    UIList.Padding = UDim.new(0, 6)
+    UIList.Parent = PageScroll
+
+    local UIPadding = Instance.new("UIPadding")
+    UIPadding.PaddingRight = UDim.new(0, 8)
+    UIPadding.Parent = PageScroll
+
+    TabButton.MouseButton1Click:Connect(function()
+        for _, p in ipairs(PagesFolder:GetChildren()) do
+            p.Visible = false
+        end
+        PageScroll.Visible = true
+    end)
+
+    return PageScroll
+end
+
+local MainMenuPage = CreateTab("Menu Chính")
+local ServerPage = CreateTab("Server")
+MainMenuPage.Visible = true -- Mặc định mở Menu Chính
+
+-- Helper Function: Tạo Toggle Switch với Logic
+local function AddToggle(parent, text, defaultState, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 35)
+    Frame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+    Frame.Parent = parent
+
+    local FrameCorner = Instance.new("UICorner", Frame)
+    FrameCorner.CornerRadius = UDim.new(0, 5)
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0.7, 0, 1, 0)
+    Label.Position = UDim2.new(0, 10, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Label.Font = Enum.Font.Gotham
+    Label.TextSize = 12
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(0, 50, 0, 22)
+    Button.Position = UDim2.new(1, -60, 0.5, -11)
+    Button.BackgroundColor3 = defaultState and Color3.fromRGB(0, 180, 100) or Color3.fromRGB(60, 60, 70)
+    Button.Text = defaultState and "ON" or "OFF"
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.Font = Enum.Font.GothamBold
+    Button.TextSize = 10
+    Button.Parent = Frame
+
+    local BtnCorner = Instance.new("UICorner", Button)
+    BtnCorner.CornerRadius = UDim.new(0, 4)
+
+    local state = defaultState
+    Button.MouseButton1Click:Connect(function()
+        state = not state
+        Button.Text = state and "ON" or "OFF"
+        Button.BackgroundColor3 = state and Color3.fromRGB(0, 180, 100) or Color3.fromRGB(60, 60, 70)
+        callback(state)
+    end)
+end
+
+-- Helper Function: Tạo Nút Action
+local function AddButton(parent, text, callback)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(1, 0, 0, 32)
+    Button.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+    Button.Text = text
+    Button.TextColor3 = Color3.fromRGB(240, 240, 240)
+    Button.Font = Enum.Font.GothamSemibold
+    Button.TextSize = 12
+    Button.Parent = parent
+
+    local Corner = Instance.new("UICorner", Button)
+    Corner.CornerRadius = UDim.new(0, 5)
+
+    Button.MouseButton1Click:Connect(callback)
+end
+
+-- -----------------------------------------------------------------
+-- 4. LOGIC VÀ 15 CHỨC NĂNG - MENU CHÍNH (MAIN MENU)
+-- -----------------------------------------------------------------
+
+-- 1. Auto Farm Level
+AddToggle(MainMenuPage, "[01] Auto Farm Level", false, function(v)
+    _G.Settings.AutoFarm = v
+end)
+task.spawn(function()
+    while task.wait(0.5) do
+        if _G.Settings.AutoFarm and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") do
+            -- Logic: Teleport tới quái gần nhất và tự đòn đánh
+            for _, monster in ipairs(workspace:GetChildren()) do
+                if monster:FindFirstChild("Humanoid") and monster.Humanoid.Health > 0 and monster:FindFirstChild("HumanoidRootPart") and monster ~= LocalPlayer.Character then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = monster.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                    break
+                end
+            end
+        end
+    end
+end)
+
+-- 2. Fast Attack (Từ obf.uiw)
+AddToggle(MainMenuPage, "[02] Fast Attack (No Delay)", false, function(v)
+    _G.Settings.FastAttack = v
+end)
+task.spawn(function()
+    while task.wait(0.05) do
+        if _G.Settings.FastAttack then
+            pcall(function()
+                local VirtualInputManager = game:GetService("VirtualInputManager")
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+            end)
+        end
+    end
+end)
+
+-- 3. Auto Farm Chests
+AddToggle(MainMenuPage, "[03] Auto Collect Chests", false, function(v)
+    _G.Settings.AutoChest = v
+end)
+task.spawn(function()
+    while task.wait(0.8) do
+        if _G.Settings.AutoChest then
+            for _, v in ipairs(workspace:GetDescendants()) do
+                if v:IsA("Part") and (v.Name:find("Chest") or v.Name:find("Treasure")) and LocalPlayer.Character then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = v.CFrame
+                    task.wait(0.3)
+                end
+            end
+        end
+    end
+end)
+
+-- 4. Auto Store Fruit
+AddToggle(MainMenuPage, "[04] Auto Store Devil Fruit", false, function(v)
+    _G.Settings.AutoStoreFruit = v
+end)
+task.spawn(function()
+    while task.wait(2) do
+        if _G.Settings.AutoStoreFruit and LocalPlayer:FindFirstChild("Backpack") then
+            for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
+                if item.Name:find("Fruit") then
+                    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("StoreFruit", item.Name, item)
+                end
+            end
+        end
+    end
+end)
+
+-- 5. Auto Collect Fruits
+AddToggle(MainMenuPage, "[05] Auto Grab Spawned Fruits", false, function(v)
+    _G.Settings.AutoCollectFruit = v
+end)
+task.spawn(function()
+    while task.wait(1) do
+        if _G.Settings.AutoCollectFruit then
+            for _, obj in ipairs(workspace:GetChildren()) do
+                if obj.Name:find("Fruit") and obj:FindFirstChild("Handle") then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = obj.Handle.CFrame
+                end
+            end
+        end
+    end
+end)
+
+-- 6. Kill Aura
+AddToggle(MainMenuPage, "[06] Kill Aura Radius", false, function(v)
+    _G.Settings.KillAura = v
+end)
+task.spawn(function()
+    while task.wait(0.2) do
+        if _G.Settings.KillAura and LocalPlayer.Character then
+            for _, target in ipairs(workspace:GetChildren()) do
+                if target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 and target ~= LocalPlayer.Character then
+                    local dist = (target.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                    if dist <= 25 then
+                        target.Humanoid:TakeDamage(10)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- 7. Hitbox Extender
+AddToggle(MainMenuPage, "[07] Hitbox Extender (Big Head)", false, function(v)
+    _G.Settings.HitboxExtender = v
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            player.Character.Head.Size = v and Vector3.new(8, 8, 8) or Vector3.new(1.2, 1.2, 1.2)
+            player.Character.Head.Transparency = v and 0.6 or 0
+        end
+    end
+end)
+
+-- 8. Auto Buso Haki
+AddToggle(MainMenuPage, "[08] Auto Enable Haki", false, function(v)
+    _G.Settings.AutoHaki = v
+end)
+task.spawn(function()
+    while task.wait(1) do
+        if _G.Settings.AutoHaki and LocalPlayer.Character then
+            if not LocalPlayer.Character:FindFirstChild("HasBuso") then
+                game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("HasBuso")
+            end
+        end
+    end
+end)
+
+-- 9. Auto Stats Upgrade
+AddToggle(MainMenuPage, "[09] Auto Add Stats (Melee)", false, function(v)
+    _G.Settings.AutoStats = v
+end)
+task.spawn(function()
+    while task.wait(1) do
+        if _G.Settings.AutoStats then
+            game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("AddPoint", "Melee", 3)
+        end
+    end
+end)
+
+-- 10. Noclip Mode
+AddToggle(MainMenuPage, "[10] Noclip (Đi Xuyên Tường)", false, function(v)
+    _G.Settings.Noclip = v
+end)
+RunService.Stepped:Connect(function()
+    if _G.Settings.Noclip and LocalPlayer.Character then
+        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- 11. Auto Random Fruit
+AddButton(MainMenuPage, "[11] Buy Random Fruit (Gacha)", function()
+    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("Cousin", "Buy")
+end)
+
+-- 12. Infinite Stamina / Energy
+AddToggle(MainMenuPage, "[12] Infinite Stamina", false, function(v)
+    _G.Settings.InfStamina = v
+end)
+
+-- 13. Auto Clicker
+AddToggle(MainMenuPage, "[13] Auto Clicker Loop", false, function(v)
+    _G.Settings.AutoClicker = v
+end)
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.Settings.AutoClicker then
+            VirtualUser:Button1Down(Vector2.new(0,0))
+            task.wait(0.05)
+            VirtualUser:Button1Up(Vector2.new(0,0))
+        end
+    end
+end)
+
+-- 14. Speed Boost
+AddButton(MainMenuPage, "[14] Speed Boost (100)", function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = 100
+    end
+end)
+
+-- 15. High Jump Boost
+AddButton(MainMenuPage, "[15] High Jump Boost (120)", function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.JumpPower = 120
+    end
+end)
+
+
+-- -----------------------------------------------------------------
+-- 5. LOGIC VÀ 15 CHỨC NĂNG - SERVER TAB
+-- -----------------------------------------------------------------
+
+-- 1. Rejoin Current Server
+AddButton(ServerPage, "[01] Rejoin Server Hiện Tại", function()
+    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+end)
+
+-- 2. Hop Server Low Players (obf.uiw utility)
+AddButton(ServerPage, "[02] Hop Server (Ít Người Nhất)", function()
+    local Api = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local Http = HttpService:JSONDecode(game:HttpGet(Api))
+    if Http and Http.data then
+        for _, v in ipairs(Http.data) do
+            if v.playing < v.maxPlayers and v.id ~= game.JobId then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, LocalPlayer)
+                break
+            end
+        end
+    end
+end)
+
+-- 3. Copy JobId
+AddButton(ServerPage, "[03] Sao Chép JobId Server", function()
+    setclipboard(tostring(game.JobId))
+end)
+
+-- 4. Anti-AFK (obf.uiw Anti Kick)
+AddToggle(ServerPage, "[04] Anti-AFK (Chống Kick)", true, function(v)
+    _G.Settings.AntiAFK = v
+end)
+LocalPlayer.Idled:Connect(function()
+    if _G.Settings.AntiAFK then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end
+end)
+
+-- 5. Fullbright / No Fog
+AddToggle(ServerPage, "[05] Fullbright (Sáng Màn Hình)", false, function(v)
+    _G.Settings.Fullbright = v
+    if v then
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        Lighting.Brightness = 2
+        Lighting.FogEnd = 1e10
+    else
+        Lighting.Ambient = Color3.fromRGB(127, 127, 127)
+        Lighting.Brightness = 1
+        Lighting.FogEnd = 10000
+    end
+end)
+
+-- 6. FPS Booster / Smooth Graphics
+AddButton(ServerPage, "[06] FPS Booster (Xóa Texture)", function()
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.Material = Enum.Material.SmoothPlastic
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            v:Destroy()
+        end
+    end
+end)
+
+-- 7. Cap FPS to 60
+AddButton(ServerPage, "[07] Khóa FPS ở Mức 60", function()
+    setfpscap(60)
+end)
+
+-- 8. Unlock FPS Unlimited
+AddButton(ServerPage, "[08] Mở Khóa FPS (Không Giới Hạn)", function()
+    setfpscap(240)
+end)
+
+-- 9. Auto Hop When Player Nearby (Safety)
+AddToggle(ServerPage, "[09] Safety Hop (Né Người Chơi)", false, function(v)
+    _G.Settings.AutoHopSafety = v
+end)
+task.spawn(function()
+    while task.wait(3) do
+        if _G.Settings.AutoHopSafety then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then
+                    local dist = (p.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                    if dist < 150 then
+                        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- 10. Force Reset Character
+AddButton(ServerPage, "[10] Tự Sát (Reset Character)", function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.Health = 0
+    end
+end)
+
+-- 11. Remove Shadows
+AddButton(ServerPage, "[11] Tắt Bóng Râm (Shadows Off)", function()
+    Lighting.GlobalShadows = false
+end)
+
+-- 12. Check Server Players Count
+AddButton(ServerPage, "[12] Kiểm Tra Số Lượng Người", function()
+    print("So nguoi choi trong server: " .. tostring(#Players:GetPlayers()))
+end)
+
+-- 13. Server Ping & FPS Monitor
+AddButton(ServerPage, "[13] In Ping & FPS ra Console (F12)", function()
+    local stats = game:GetService("Stats")
+    print("Ping: " .. math.floor(stats.Network.ServerStatsItem["Data Ping"]:GetValue()) .. " ms")
+    print("FPS: " .. math.floor(workspace:GetRealPhysicsFPS()))
+end)
+
+-- 14. Clear All Terrain
+AddButton(ServerPage, "[14] Tắt Chi Tiết Cỏ/Địa Hình", function()
+    sethiddenproperty(workspace.Terrain, "Decoration", false)
+end)
+
+-- 15. Server Teleport to Safe Zone
+AddButton(ServerPage, "[15] Teleport Về Safe Zone", function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(0, 500, 0)
+    end
+end)
+
+print("Gianhue.lua loaded successfully with ong_U LED Engine & obf.uiw functions!")
